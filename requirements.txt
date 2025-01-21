@@ -1,0 +1,14 @@
+tensorflow==2.12.0
+tensorflow-addons==0.20.0
+numpy
+scipy
+pandas
+matplotlib
+scikit-learn
+h5py
+tqdm
+opencv-python
+scikit-image
+keras
+keras-CV
+keras-NLP

@@ -6,20 +6,18 @@ from absl import flags
 from absl import logging
 import tensorflow as tf
 from models import Uformer
-import data_provider
+import data_providerV2
 import losses
 import models
-import synthesis
+import synthesisV2
 
 flags.DEFINE_string(
     'train_dir', '/tmp/train',
     'Directory where training checkpoints and summaries are written.')
-flags.DEFINE_string('scene_dir', None,
-                    'Full path to the directory containing scene images.')
-flags.DEFINE_string('flarec_dir', None,
-                    'Full path to the directory containing flare images.')
-flags.DEFINE_string('flares_dir', None,
-                    'Full path to the directory containing flare images.')
+####
+flags.DEFINE_string('scene_dir', None, 'Path to the directory containing ground truth scene images (without flares).')
+flags.DEFINE_string('flare_dir', None, 'Path to the directory containing flare-paired images (with flares).')
+###
 flags.DEFINE_enum(
     'data_source', 'jpg', ['tfrecord', 'jpg'],
     'Source of training data. Use "jpg" for individual image files, such as '
@@ -27,9 +25,9 @@ flags.DEFINE_enum(
 flags.DEFINE_string('model', 'unet', 'the name of the training model')
 flags.DEFINE_string('loss', 'percep', 'the name of the loss for training')
 flags.DEFINE_integer('batch_size', 2, 'Training batch size.')
-flags.DEFINE_integer('epochs', 60, 'Training config: epochs.')
+flags.DEFINE_integer('epochs', 100, 'Training config: epochs.') #original epochs 60 ckpt period 100
 flags.DEFINE_integer(
-    'ckpt_period', 1000,
+    'ckpt_period', 200,
     'Write model checkpoint and summary to disk every ckpt_period steps.')
 flags.DEFINE_float('learning_rate', 1e-4, 'Initial learning rate.')
 flags.DEFINE_float(
@@ -37,11 +35,11 @@ flags.DEFINE_float(
     'Gaussian noise sigma added in the scene in synthetic data. The actual '
     'Gaussian variance for each image will be drawn from a Chi-squared '
     'distribution with a scale of scene_noise.')
-flags.DEFINE_float(
-    'flare_max_gain', 10.0,
-    'Max digital gain applied to the flare patterns during synthesis.')
-flags.DEFINE_float('flare_loss_weight', 0.0,
-                   'Weight added on the flare loss (scene loss is 1).')
+#flags.DEFINE_float(
+#    'flare_max_gain', 10.0,
+#    'Max digital gain applied to the flare patterns during synthesis.')
+#flags.DEFINE_float('flare_loss_weight', 0.0,
+#                   'Weight added on the flare loss (scene loss is 1).')
 flags.DEFINE_integer('training_res', 512, 'Training resolution.')
 flags.DEFINE_string(
     'ckpt', "_DEFAULT_CKPT",
@@ -52,21 +50,18 @@ flags.DEFINE_string(
     'required. To load a specific checkpoint, use the checkpoint prefix '
     'instead of the checkpoint directory for this argument.')
 FLAGS = flags.FLAGS
-FLAGS = flags.FLAGS
 
 
 @tf.function
 def train_step(model, scene, flare, loss_fn, optimizer):
   """Executes one step of gradient descent."""
   with tf.GradientTape() as tape:
-    loss_value, summary = synthesis.run_step(
-        scene,
-        flare,
+    loss_value, summary = synthesisV2.run_step(
+        flare, #with flare
+        scene, #gt without
         model,
         loss_fn,
         noise=FLAGS.scene_noise,
-        flare_max_gain=FLAGS.flare_max_gain,
-        flare_loss_weight=FLAGS.flare_loss_weight,
         training_res=FLAGS.training_res)
   grads = tape.gradient(loss_value, model.trainable_weights)
   grads, _ = tf.clip_by_global_norm(grads, 5.0)
@@ -81,30 +76,10 @@ def main(_):
   model_dir = os.path.join(train_dir, 'model')
 
   # Load data.
-  scenes = data_provider.get_scene_dataset(
-      FLAGS.scene_dir, FLAGS.data_source, FLAGS.batch_size, repeat=FLAGS.epochs)
-  flares_simulated = data_provider.get_flare_dataset(FLAGS.flares_dir, FLAGS.data_source,
-                                           FLAGS.batch_size)
-  flares_captured = data_provider.get_flare_dataset(FLAGS.flarec_dir, FLAGS.data_source,
-                                           FLAGS.batch_size)
-# Check if the datasets are loaded correctly
-  print(f"Number of scene images: {scenes.cardinality().numpy()}")
-  print(f"Number of captured flare images: {flares_captured.cardinality().numpy()}")
-  print(f"Number of simulated flare images: {flares_simulated.cardinality().numpy()}")
+  dataset = data_providerV2.get_paired_scene_and_flare_dataset(
+    FLAGS.scene_dir, FLAGS.flare_dir, FLAGS.data_source, FLAGS.batch_size, repeat=FLAGS.epochs)
 
-    # Force evaluation by iterating over the datasets
-  try:
-        scene_example = next(iter(scenes))
-        flarec_example = next(iter(flares_captured))
-        flares_example = next(iter(flares_simulated))
 
-        # Print shape of each dataset
-        print("Scene image shape: ", scene_example.shape)
-        print("Captured flare image shape: ", flarec_example.shape)
-        print("Simulated flare image shape: ", flares_example.shape)
-
-  except Exception as e:
-        print(f"Error loading datasets: {e}")
   # Make a model.
   if FLAGS.model == 'Uformer':
     model = Uformer()
@@ -141,19 +116,7 @@ def main(_):
 
   step_time_metric = tf.keras.metrics.Mean('step_time')
   step_start_time = time.time()
-  for scene, flarec, flares in tf.data.Dataset.zip((scenes, flares_captured, flares_simulated)):
-
-    tag = np.random.randint(0,3)
-    #if tag=0 all the flares are captured
-    #if tag=1 all the flares are simulated
-    #if tag=2 one is captured one is simulated
-    #tag = 2
-    if tag == 0:
-      flare = flarec
-    if tag == 1:
-      flare = flares
-    if tag == 2:
-      flare = tf.stack([flarec[0], flares[0]])
+  for scene, flare in dataset:
     
     # Perform one training step.
     loss_value, summary = train_step(model, scene, flare, loss_fn, optimizer)
