@@ -79,6 +79,26 @@ For custom models:
 python3 remove_flare.py --input_dir=input_data/LL_lensflare --out_dir=results/custom --model=Uformer --batch_size=2 --ckpt=experiments/custom_trained_model
 ```
 
+## Training
+
+### Flare7K++
+Train the model with a baseline configuration:
+```bash
+python basicsr/train.py -opt options/uformer_flare7kpp_baseline_option.yml
+```
+
+### Google Research
+Train the model with custom data:
+```bash
+python3 -m flare_removal.python.train --train_dir=../train/ --scene_dir=../scene_data/ --flare_dir=../flare_data/
+```
+
+### ILF
+Train with preprocessed datasets:
+```bash
+python train.py --flarec_dir=path/to/captured_flare --flares_dir=path/to/simulated_flare --scene_dir=path/to/scene_image
+```
+
 ### Custom Training with Simulation Pipeline
 
 For custom pipelines using simulated scenes with pre-added flares (e.g., `scene_with_flare`), use the following scripts and commands:
@@ -117,28 +137,7 @@ In the `data_provider.py` code, image shapes for scene and flare datasets are sp
 
 Resize images as needed for compatibility.
 
-
-## Training
-
-### Flare7K++
-Train the model with a baseline configuration:
-```bash
-python basicsr/train.py -opt options/uformer_flare7kpp_baseline_option.yml
-```
-
-### Google Research
-Train the model with custom data:
-```bash
-python3 -m flare_removal.python.train --train_dir=../train/ --scene_dir=../scene_data/ --flare_dir=../flare_data/
-```
-
-### ILF
-Train with preprocessed datasets:
-```bash
-python train.py --flarec_dir=path/to/captured_flare --flares_dir=path/to/simulated_flare --scene_dir=path/to/scene_image
-```
-
-## Notes on Jetson Nano Orin
+## Notes to run models on the Jetson Nano Orin with jetpack 6.0 (LEO08 on LunaLab)
 
 - **Flare7K++** requires PyTorch. Install using NVIDIA's package manager:
   - [PyTorch JetPack](https://forums.developer.nvidia.com/t/torchvision-version-jetpack-6-0/301709/2)
