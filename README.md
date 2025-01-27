@@ -79,6 +79,45 @@ For custom models:
 python3 remove_flare.py --input_dir=input_data/LL_lensflare --out_dir=results/custom --model=Uformer --batch_size=2 --ckpt=experiments/custom_trained_model
 ```
 
+### Custom Training with Simulation Pipeline
+
+For custom pipelines using simulated scenes with pre-added flares (e.g., `scene_with_flare`), use the following scripts and commands:
+
+#### New Script: **SynthesisV2.py**
+
+This script synthesizes flare-affected images and prepares datasets.
+
+#### Training Command
+
+```bash
+python trainV2.py --flare_dir=test_data/batch_003/flares640 --scene_dir=test_data/batch_003/gt640
+```
+
+#### Flare Removal
+
+```bash
+python3 remove_flare.py \
+  --input_dir=input_data \
+  --out_dir=results/blender_modelv15102024 \
+  --model=Uformer \
+  --batch_size=2 \
+  --ckpt=experiments/blender_model/train/model
+```
+
+### Notes on Dataset Preparation
+
+In the `data_provider.py` code, image shapes for scene and flare datasets are specified:
+
+- **Scene Dataset** (`get_scene_dataset`):
+  - Default input shape: `(640, 640, 3)`
+  - Scene images are expected to be 640x640 pixels.
+- **Flare Dataset** (`get_flare_dataset` and `get_flare_dataset2`):
+  - Default input shape: `(752, 1008, 3)`
+  - Flare images are expected to be 752x1008 pixels.
+
+Resize images as needed for compatibility.
+
+
 ## Training
 
 ### Flare7K++
